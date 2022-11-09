@@ -9,7 +9,7 @@ export default {
       cartQTY: 0,
       cartSubtotal: 0,
       cartTotal: 0,
-    })
+    });
 
     var requestOptions = {
       method: "GET",
@@ -20,8 +20,7 @@ export default {
       return fetch("https://dummyjson.com/products", requestOptions)
         .then((response) => response.json())
         .then((result) => {
-          const products = result.products;
-          state.data = products;
+          state.data = result.products;
           return state.data;
         })
         .catch((error) => console.log("error", error));
@@ -29,57 +28,74 @@ export default {
 
     useFetch();
 
-    const formatter = new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    });
+    const formatIDR = (value) => {
+      const formatter = new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      });
+      return formatter.format(value);
+    };
+
+    const discountPrice = (price, discount) => {
+      const priceInRupiah = price * 15000;
+      const discountRound = Math.round(discount);
+
+      const cutOff = (discountRound / 100) * priceInRupiah;
+      return priceInRupiah - cutOff;
+    };
 
     const sellPrice = (price, discount) => {
-      const priceInRupiah = price * 15000
-      const discountRound = Math.round(discount)
-
-      const cutOff = (discountRound / 100) * priceInRupiah
-      return priceInRupiah - cutOff
-    }
-
-    const toIDR = (price) => {
-      price = price * 15000
-      return formatter.format(price)
-    }
+      const priceAfterDiscount = discountPrice(price, discount);
+      return formatIDR(priceAfterDiscount);
+    };
 
     const addToCart = (data) => {
-      let index = 0
-      const value = JSON.parse(JSON.stringify(data))
+      const itemPrice = discountPrice(data.price, data.discountPercentage);
+      const itemIndex = state.cart.findIndex((e) => e.id === data.id);
 
-      const priceToIDR = value.price * 15000
-      const itemPrice = sellPrice(priceToIDR, value.discount)
-      console.log(itemPrice)
+      if (state.cart.some((e) => e.id === data.id)) {
+        const cartItem = state.cart[itemIndex]
+        state.cartTotal += cartItem.subtotal;
+        cartItem.qty++;
+        cartItem.subtotal += itemPrice;
+        console.log('subtotal', cartItem.subtotal);
+        console.log('total', state.cartTotal);
+      } else {
+        state.cartQTY++;
+        state.cartSubtotal += itemPrice;
 
-      state.cartQTY++
-      state.cartSubtotal += itemPrice
-      state.cartTotal += state.cartSubtotal
+        const itemCart = {
+          id: data.id,
+          name: data.title,
+          qty: state.cartQTY,
+          price: itemPrice,
+          subtotal: state.cartSubtotal,
+        };
 
-      const itemCart = {
-        id: index,
-        name: value.title,
-        qty: state.cartQTY,
-        price: itemPrice,
-        subtotal: state.cartSubtotal,
-        total: state.cartTotal,
+        state.cartTotal += state.cartSubtotal;
+
+        console.log('subtotal', state.cartSubtotal);
+        console.log('total', state.cartTotal);
+
+        state.cart.push(itemCart);
+        state.cartQTY = 0;
+        state.cartSubtotal = 0;
       }
+    };
 
-      index++
-
-      state.cart.push(itemCart)
-    }
+    const removeFromCart = (data) => {
+      const itemIndex = state.cart.findIndex((e) => e.id === data.id);
+      return state.cart.splice(itemIndex, 1);
+    };
 
     return {
-      addToCart,
-      formatter,
       state,
+      addToCart,
+      discountPrice,
+      formatIDR,
+      removeFromCart,
       sellPrice,
-      toIDR,
     };
   },
 };
@@ -91,7 +107,7 @@ export default {
   </header>
 
   <main>
-    <!-- <pre>{{ state.data }}</pre> -->
+    <!-- <pre>{{ state.cartTotal }}</pre> -->
     <div id="cards-group" class="cards-container">
       <section v-for="data in state.data" :key="data.id" class="card-item">
         <img :src="data.thumbnail" alt="image" class="item-image" />
@@ -100,13 +116,13 @@ export default {
           <h4 class="item-title">{{ data.title }}</h4>
           <p class="item-desc">{{ data.description }}</p>
           <p class="item-price">
-            {{ formatter.format(sellPrice(data.price, data.discountPercentage)) }}
+            {{ sellPrice(data.price, data.discountPercentage) }}
           </p>
           <section class="discount">
             <div class="discount-percentage">
               {{ Math.round(data.discountPercentage) }}%
             </div>
-            <p class="normal-price">{{ toIDR(data.price) }}</p>
+            <p class="normal-price">{{ formatIDR(data.price * 15000) }}</p>
           </section>
           <p class="rating">{{ data.rating }}</p>
         </div>
@@ -118,7 +134,7 @@ export default {
       </section>
     </div>
     <div id="shopping-cart" class="cart-container">
-      <section class="card-cart">
+      <section v-if="state.cart && state.cart.length > 0" class="card-cart">
         <div class="cart-title">
           <h2>Shopping Cart</h2>
         </div>
@@ -129,38 +145,39 @@ export default {
             <h2 class="header-label">Price</h2>
             <h2 class="header-label">Sub total</h2>
           </section>
-          <section v-for="cart in state.cart" :key="id" class="items">
+          <section v-for="cart in state.cart" :key="cart.id" class="items">
             <h5 class="items-label">{{ cart.name }}</h5>
             <h5 class="items-label">{{ cart.qty }}</h5>
-            <h5 class="items-label">{{ cart.price }}</h5>
-            <h5 class="items-label">{{ formatter.format(cart.subtotal) }}</h5>
+            <h5 class="items-label">
+              {{ formatIDR(cart.price).substring(3) }}
+            </h5>
+            <h5 class="items-label">
+              {{ formatIDR(cart.subtotal).substring(3) }}
+            </h5>
           </section>
-          <!-- <section class="items"> -->
-            <!-- <pre>{{ state.cart }}</pre> -->
-            <!-- <h5 class="items-label">{{ cart.name }}</h5>
-            <h5 class="items-label">{{ cart.qty }}</h5>
-            <h5 class="items-label">{{ cart.price }}</h5>
-            <h5 class="items-label">{{ formatter.format(cart.subtotal) }}</h5> -->
-          <!-- </section> -->
         </div>
         <hr />
         <div class="cart-total">
           <p id="label-total">Total</p>
-          <!-- <p id="cart-total">{{ formatter.format(cart.total) }}</p> -->
+          <p id="cart-total">{{ formatIDR(state.cartTotal) }}</p>
         </div>
         <button class="btn-primary">
           <span class="btn-label">Checkout</span>
         </button>
       </section>
-      <!-- <section class="card-cart">
+      <section v-else class="card-cart">
         <div class="cart-title">
           <h2>Shopping Cart</h2>
         </div>
         <div class="cart-content-empty">
-          <img src="./assets/empty-cart.svg" alt="cart icon" class="empty-cart">
+          <img
+            src="./assets/empty-cart.svg"
+            alt="cart icon"
+            class="empty-cart"
+          />
           <h4 class="empty-label">No items in the shopping cart</h4>
         </div>
-      </section> -->
+      </section>
     </div>
   </main>
 </template>
